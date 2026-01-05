@@ -1,0 +1,261 @@
+
+#include <LiquidCrystal.h>
+#include <Wire.h>
+#include "RTClib.h"
+RTC_DS3231 rtc;
+LiquidCrystal lcd(12, 11, 5, 4, 3, 6);
+#define STEP_PIN 1
+#define DIR_PIN  2
+unsigned long tiempoInicio = 0;
+DateTime tiempoInicioRTC;
+const int buzz = 13;
+const int pinLed = 14;
+const int pinLedgood = 15;
+const int boton1 = 8;
+const int boton2 = 9;
+const int inicio =0;  
+const int pinEntrada = 7; 
+const int pasos_290 = 161;
+bool estadoAnterior = LOW;
+
+int previousMotorstate = LOW;
+unsigned long lastTime = 0; 
+int interval = 1000;
+
+
+unsigned long intervaloPaso = 800;     // microsegundos entre pasos convertidos a uso con millis
+unsigned long intervaloPausa = 1000;   // 1 segundo entre giros
+
+// Variables de control
+unsigned long tiempoAnterior = 0;
+unsigned long tiempoPausa = 0;
+bool ledEncendido = false;
+long pasosDados = 0;
+bool sentido = LOW;
+
+enum EstadoMotor { GIRANDO, PAUSA };
+EstadoMotor estado = GIRANDO;
+
+void setup() {
+  Wire.begin();
+  rtc.begin();
+  pinMode(pinEntrada, INPUT);
+  pinMode(STEP_PIN, OUTPUT);
+  pinMode(DIR_PIN, OUTPUT);
+  pinMode(inicio,INPUT_PULLUP);
+  digitalWrite(DIR_PIN, sentido);
+  pinMode(boton1,INPUT_PULLUP);
+  pinMode(boton2,INPUT_PULLUP);
+   pinMode(pinLed, OUTPUT);
+   pinMode(pinLedgood, OUTPUT);
+   pinMode(buzz, OUTPUT);
+   lcd.begin(16, 2);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("To find the 0v");
+ 
+}
+
+void loop() {
+ 
+  DateTime ahora = rtc.now();
+  int posicion=digitalRead(pinEntrada);
+  if(posicion==LOW){
+  digitalWrite(pinLedgood, HIGH);
+ lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("In position");
+  lcd.setCursor(0, 1);
+  lcd.print("Push start");
+  }
+  else {
+ 
+digitalWrite(pinLedgood, LOW);
+ lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.setCursor(0, 0);
+  lcd.print("To find the 0v");
+  lcd.setCursor(0, 1);
+
+ }
+
+//control manual 
+ if(digitalRead(boton1)==LOW){    
+     digitalWrite(DIR_PIN, HIGH);
+
+    digitalWrite(STEP_PIN, HIGH);
+    delayMicroseconds(5500);       
+
+    digitalWrite(STEP_PIN, LOW);
+    delayMicroseconds(5500);
+    }
+  
+  if(digitalRead(boton2)==LOW){    
+
+     digitalWrite(DIR_PIN, LOW);
+
+    digitalWrite(STEP_PIN, HIGH);
+    delayMicroseconds(5500);       
+
+    digitalWrite(STEP_PIN, LOW);
+    delayMicroseconds(5500);
+   
+    }
+
+
+//inicia programa si la senal de inicio esta en bajo
+   int start =digitalRead(inicio);
+
+   if(start==0){
+   tiempoInicioRTC=ahora;
+   
+
+//al iniciar el programa desplaza el motor 209 pasos
+  while(true){
+  
+  
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Monitoring EOS..");
+  
+  unsigned long currentTime = millis();
+
+ 
+ if (currentTime - lastTime >= interval){
+
+ 
+ lastTime = currentTime;
+
+
+ if (previousMotorstate == HIGH) {
+ moverPasos(pasos_290, LOW);
+ digitalWrite(pinLedgood, HIGH);
+ previousMotorstate = LOW;
+ } else {
+ moverPasos(pasos_290, HIGH);
+digitalWrite(pinLedgood, LOW);
+ previousMotorstate = HIGH;
+ }
+ }
+
+int estadoActual = digitalRead(pinEntrada);
+ 
+  if (estadoActual == HIGH && estadoAnterior == LOW) {
+    tiempoInicio = millis();  
+  }
+
+  if (estadoActual == HIGH) {
+    unsigned long duracion = millis() - tiempoInicio;
+
+    if (duracion >= 2000 && !ledEncendido) {
+      while(1){
+        long segundos=ahora.unixtime() - tiempoInicioRTC.unixtime();
+        int horas = segundos / 3600;
+    int minutos = (segundos % 3600) / 60;
+    int seg = segundos % 60;
+
+    lcd.setCursor(0, 0);
+    lcd.print("Tiempo:");
+
+    lcd.setCursor(0, 1);
+    if (horas < 10) lcd.print("0");
+    lcd.print(horas);
+    lcd.print(":");
+
+    if (minutos < 10) lcd.print("0");
+    lcd.print(minutos);
+    lcd.print(":");
+
+    if (seg < 10) lcd.print("0");
+    lcd.print(seg);
+    
+        digitalWrite(buzz, HIGH);
+    
+        lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("EOS FAIL");
+      digitalWrite(pinLedgood, LOW);
+      digitalWrite(pinLed, HIGH);
+      ledEncendido = true; 
+      if(digitalRead(boton1)==LOW){    
+     digitalWrite(DIR_PIN, HIGH);
+
+    digitalWrite(STEP_PIN, HIGH);
+    delayMicroseconds(5500);       
+
+    digitalWrite(STEP_PIN, LOW);
+    delayMicroseconds(5500);
+    }
+  
+  if(digitalRead(boton2)==LOW){    
+
+     digitalWrite(DIR_PIN, LOW);
+
+    digitalWrite(STEP_PIN, HIGH);
+    delayMicroseconds(5500);       
+
+    digitalWrite(STEP_PIN, LOW);
+    delayMicroseconds(5500);
+   
+    }
+    }
+    }
+  }
+  estadoAnterior = estadoActual; 
+
+
+
+
+
+   
+  }
+  }
+  }
+
+
+//funcion que mueve el motor
+void moverPasos(long pasos, bool sentido) {
+  digitalWrite(DIR_PIN, sentido);  
+
+  for (long i = 0; i < pasos; i++) {
+    digitalWrite(STEP_PIN, HIGH);
+    delayMicroseconds(800); 
+    digitalWrite(STEP_PIN, LOW);
+    delayMicroseconds(800);
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
